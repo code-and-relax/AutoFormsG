@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "AutoFormsG",
+    "version": "1.0",
+    "description": "AutoFormsG is a chrome extension that helps you to summarize articles and write emails faster.",
+    "permissions": [
+        "scripting",
+        "activeTab",
+        "storage"
+    ],
+    "host_permissions": [
+        "https://docs.google.com/forms/*",
+        "https://api.openai.com/*",
+        "<all_urls>"
+    ],
+    "action": {
+        "default_popup": "popup/popup.html",
+        "default_icon": "assets/icon.png"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "scripts/inject.js",
+                "assets/lottie/loading.gif"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ]
+}
