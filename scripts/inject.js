@@ -201,6 +201,8 @@ function startProcess() {
     if (!extractedJson) {
         console.log("No se pudo extraer la información del formulario.");
         hideLoadingIndicator();
+        // Llamar igualmente a initReportDivListener si se requiere
+        initReportDivListener();
         return;
     }
     sendToOpenAI(extractedJson).then(answerData => {
@@ -208,12 +210,84 @@ function startProcess() {
         if (!answerData) {
             console.log("No se obtuvo respuesta de OpenAI.");
             hideLoadingIndicator();
+            initReportDivListener();
             return;
         }
         injectAnswerMarkers(answerData);
         hideLoadingIndicator();  // Oculta el gif una vez inyectado el contenido
+        initReportDivListener(); // Llamamos a initReportDivListener tras la inyección
     });
 }
 
-// Se ejecuta la función principal al cargar la página
 startProcess();
+
+// Nueva funcionalidad: convertir el div en un input al pulsarlo y alternar su visibilidad con Ctrl+clic derecho
+let reportInput = null;
+
+// Nueva función para identificar el div "report" comprobando solamente la presencia de todos los atributos (sin importar sus valores).
+function findReportDiv() {
+    const candidates = document.querySelectorAll('div[role="button"]');
+    for (const candidate of candidates) {
+        if (
+            candidate.hasAttribute('jscontroller') &&
+            candidate.hasAttribute('jsaction') &&
+            candidate.hasAttribute('jsshadow') &&
+            candidate.hasAttribute('jsname') &&
+            candidate.hasAttribute('aria-label') &&
+            candidate.hasAttribute('aria-disabled') &&
+            candidate.hasAttribute('tabindex') &&
+            candidate.hasAttribute('data-tooltip') &&
+            candidate.hasAttribute('data-tooltip-position') &&
+            candidate.hasAttribute('data-tooltip-vertical-offset') &&
+            candidate.hasAttribute('data-tooltip-horizontal-offset')
+        ) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
+// Reemplaza initReportDivListener para usar findReportDiv en lugar de selectores basados en atributos.
+function initReportDivListener() {
+    function attachListener(reportDiv) {
+        reportDiv.addEventListener("click", () => {
+            reportInput = document.createElement("input");
+            reportInput.style.width = "500px";
+            reportInput.style.height = "25px";
+            reportInput.style.background = "transparent";
+            reportInput.style.border = "1px solid rgba(0, 0, 0, 0.1)";
+            reportInput.style.color = "#00000054";
+            // ...existing code para reemplazar el div...
+            reportDiv.parentNode.replaceChild(reportInput, reportDiv);
+            const hideFeedbackCSS = "#google-feedback, #google-feedback iframe, #google-feedback * { display: none !important; }";
+            const styleHead = document.createElement("style");
+            styleHead.innerHTML = hideFeedbackCSS;
+            document.head.appendChild(styleHead);
+            const styleBody = document.createElement("style");
+            styleBody.innerHTML = hideFeedbackCSS;
+            document.body.appendChild(styleBody);
+        });
+    }
+
+    let reportDiv = findReportDiv();
+    if (reportDiv) {
+        attachListener(reportDiv);
+    } else {
+        const observer = new MutationObserver((mutations, obs) => {
+            const newReportDiv = findReportDiv();
+            if (newReportDiv) {
+                attachListener(newReportDiv);
+                obs.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+}
+
+// Listener para alternar visibilidad con Ctrl + clic derecho
+document.addEventListener("contextmenu", (e) => {
+    if (e.ctrlKey && reportInput) {
+        e.preventDefault(); // Elimina el menú contextual original
+        reportInput.style.display = (reportInput.style.display === "none") ? "block" : "none";
+    }
+});
