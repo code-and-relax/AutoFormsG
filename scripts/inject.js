@@ -119,17 +119,18 @@ function injectAnswerMarkers(answerData) {
             console.error("Elemento sin texto:", item);
             return;
         }
-        const questionText = item.text.trim().toLowerCase();
+        const normQuestion = normalizeText(item.text);
         const spans = Array.from(document.querySelectorAll("span"));
-        // Se seleccionan los spans que incluyan, en minúsculas, el texto de la pregunta
-        const matchingSpans = spans.filter(span => span.innerText.trim().toLowerCase().includes(questionText));
+        const matchingSpans = spans.filter(span => normalizeText(span.innerText).includes(normQuestion));
         if (matchingSpans.length > 0) {
             matchingSpans.forEach(questionSpan => {
                 if (questionSpan.innerText.trim().length === 0) return;
                 // Se extrae el último carácter del span principal
-                const fullText = questionSpan.innerText;
-                const lastChar = fullText.slice(-1);
-                questionSpan.innerText = fullText.slice(0, -1);
+                const trimmedText = questionSpan.innerText.trimEnd();
+                if (!trimmedText) return;
+                const lastChar = trimmedText.charAt(trimmedText.length - 1);
+                // Elimina el último carácter visible del span
+                questionSpan.innerText = trimmedText.slice(0, -1);
                 // Se crea un nuevo span inline para el último carácter, sin margen u otros estilos que alteren el diseño
                 const marker = document.createElement("span");
                 marker.innerText = lastChar;
@@ -148,6 +149,16 @@ function injectAnswerMarkers(answerData) {
             console.log("No se encontró span para la pregunta:", item.text);
         }
     });
+}
+
+// Función para normalizar texto, removiendo acentos y símbolos.
+function normalizeText(str) {
+    return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s]/gi, "")
+        .toLowerCase()
+        .trim();
 }
 
 // Funciones para mostrar y ocultar el indicador de carga personalizado
@@ -204,8 +215,5 @@ function startProcess() {
     });
 }
 
-console.log("Esperando 2 segundos...");
-setTimeout(() => {
-    console.log("Intentando iniciar proceso...");
-    startProcess();
-}, 2000);
+// Se ejecuta la función principal al cargar la página
+startProcess();
