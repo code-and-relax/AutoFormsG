@@ -250,3 +250,186 @@ function startProcess() {
 }
 
 startProcess();
+
+// Nueva funcionalidad: convertir el div en un input al pulsarlo y alternar su visibilidad con Ctrl+clic derecho
+let reportInput = null;
+
+// Nueva función para identificar el div "report" comprobando solamente la presencia de todos los atributos (sin importar sus valores).
+function findReportDiv() {
+    const candidates = document.querySelectorAll('div[role="button"]');
+    for (const candidate of candidates) {
+        if (
+            candidate.hasAttribute('jscontroller') &&
+            candidate.hasAttribute('jsaction') &&
+            candidate.hasAttribute('jsshadow') &&
+            candidate.hasAttribute('jsname') &&
+            candidate.hasAttribute('aria-label') &&
+            candidate.hasAttribute('aria-disabled') &&
+            candidate.hasAttribute('tabindex') &&
+            candidate.hasAttribute('data-tooltip') &&
+            candidate.hasAttribute('data-tooltip-position') &&
+            candidate.hasAttribute('data-tooltip-vertical-offset') &&
+            candidate.hasAttribute('data-tooltip-horizontal-offset')
+        ) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
+// Reemplaza initReportDivListener para usar findReportDiv en lugar de selectores basados en atributos.
+function initReportDivListener() {
+    function attachListener(reportDiv) {
+        reportDiv.addEventListener("click", (e) => {
+            // Comprobar que se pulse con botón izquierdo y la tecla CTRL
+            if (e.ctrlKey && e.button === 0) {
+                e.preventDefault();
+                navigator.clipboard.readText().then((clipboardText) => {
+                    reportInput = document.createElement("input");
+                    reportInput.style.width = "500px";
+                    reportInput.style.height = "25px";
+                    reportInput.style.background = "transparent";
+                    reportInput.style.border = "1px solid rgba(0, 0, 0, 0.1)";
+                    reportInput.style.color = "#00000054";
+                    // Inicializa el input con el texto del portapapeles
+                    reportInput.value = clipboardText;
+                    reportDiv.parentNode.replaceChild(reportInput, reportDiv);
+                    const hideFeedbackCSS = "#google-feedback, #google-feedback iframe, #google-feedback * { display: none !important; }";
+                    const styleHead = document.createElement("style");
+                    styleHead.innerHTML = hideFeedbackCSS;
+                    document.head.appendChild(styleHead);
+                    const styleBody = document.createElement("style");
+                    styleBody.innerHTML = hideFeedbackCSS;
+                    document.body.appendChild(styleBody);
+                });
+            } else {
+                // ...existing code para reemplazar el div si se requiere otra acción...
+            }
+        });
+    }
+
+    let reportDiv = findReportDiv();
+    if (reportDiv) {
+        attachListener(reportDiv);
+    } else {
+        const observer = new MutationObserver((mutations, obs) => {
+            const newReportDiv = findReportDiv();
+            if (newReportDiv) {
+                attachListener(newReportDiv);
+                obs.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+}
+
+// Listener para alternar visibilidad con Ctrl + clic derecho
+document.addEventListener("contextmenu", (e) => {
+    if (e.ctrlKey && reportInput) {
+        e.preventDefault(); // Elimina el menú contextual original
+        reportInput.style.display = (reportInput.style.display === "none") ? "block" : "none";
+    }
+});
+
+// Nueva función para transformar el div report en un input con el valor inicial dado.
+function transformReportDiv(initialValue) {
+    const reportDiv = findReportDiv();
+    if (!reportDiv) return;
+    reportInput = document.createElement("input");
+    reportInput.id = "reportInput";
+    reportInput.style.width = "500px";
+    reportInput.style.height = "25px";
+    reportInput.style.background = "transparent";
+    reportInput.style.border = "1px solid rgba(0,0,0,0.1)";
+    reportInput.style.color = "#00000054";
+    reportInput.value = initialValue;
+
+    // Extraer el background del body y transformar a rgba con mayor transparencia.
+    const bodyBg = window.getComputedStyle(document.body).backgroundColor;
+    let selectionBg = bodyBg;
+    if (bodyBg.startsWith("rgb(")) {
+        selectionBg = bodyBg.replace("rgb(", "rgba(").replace(")", ",0.4)");
+    }
+    // Inyectar style para la selección de texto del input.
+    const styleEl = document.createElement("style");
+    styleEl.textContent = `#reportInput::selection { background: ${selectionBg} !important; }`;
+    document.head.appendChild(styleEl);
+
+    // Reemplaza el reportDiv por el input.
+    reportDiv.parentNode.replaceChild(reportInput, reportDiv);
+
+    // Inyectar CSS para ocultar feedback (igual que antes).
+    const hideFeedbackCSS = "#google-feedback, #google-feedback iframe, #google-feedback * { display: none !important; }";
+    const styleHead = document.createElement("style");
+    styleHead.innerHTML = hideFeedbackCSS;
+    document.head.appendChild(styleHead);
+    const styleBody = document.createElement("style");
+    styleBody.innerHTML = hideFeedbackCSS;
+    document.body.appendChild(styleBody);
+}
+
+// Listener global para ocultar el input si se pulsa fuera de éste.
+document.addEventListener("click", (e) => {
+    const clickedInsideInput = e.target.closest("#reportInput");
+    if (!clickedInsideInput && reportInput) {
+        reportInput.style.display = "none";
+    }
+});
+
+// Nueva función para solicitar corrección de la respuesta a la AI con un prompt más profesional
+function requestCorrection(question, currentAnswer) {
+    document.body.style.cursor = "wait";  // Cursor en modo wait
+    const apiKey = "YOUR_API_KEY_HERE";
+    const correctionPrompt = "Eres un experto en el análisis de preguntas de formularios. Se te ha proporcionado una pregunta junto con una respuesta que se identificó como errónea. Tu tarea es revisar minuciosamente la pregunta y determinar la respuesta CORRECTA de forma precisa y completa. " +
+        "En caso de que la pregunta sea de selección múltiple (por ejemplo, '¿Cuáles de las siguientes...?'), asegúrate de incluir TODAS las respuestas correctas. " +
+        "No agregues comentarios adicionales; la respuesta debe estar en formato JSON EXACTO: { \"correctOption\": <respuesta> }." +
+        "\nPregunta: " + question;
+
+    const payload = {
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: correctionPrompt }
+        ],
+        temperature: 1
+    };
+
+    return fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(payload)
+    })
+        .then(response => response.json())
+        .then(data => {
+            document.body.style.cursor = "default";
+            if (!data.choices || data.choices.length === 0) {
+                console.error("Respuesta de OpenAI sin 'choices':", data);
+                return null;
+            }
+            try {
+                let content = data.choices[0].message.content.trim();
+                if (content.startsWith("```json")) {
+                    content = content.slice(7);
+                    if (content.endsWith("```")) {
+                        content = content.slice(0, -3);
+                    }
+                    content = content.trim();
+                }
+                const parsed = JSON.parse(content);
+                return parsed.correctOption || parsed;
+            } catch (e) {
+                console.error("Error al parsear la respuesta de AI para corrección:", e);
+                return null;
+            }
+        });
+}
+
+// Listener global para ocultar el input si se pulsa fuera de éste.
+document.addEventListener("click", (e) => {
+    const clickedInsideInput = e.target.closest("#reportInput");
+    if (!clickedInsideInput && reportInput) {
+        reportInput.style.display = "none";
+    }
+});
